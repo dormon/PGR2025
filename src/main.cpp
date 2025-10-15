@@ -51,10 +51,12 @@ int main(int argc,char*argv[]){
 
   out vec3 vColor;
 
+  uniform vec3 position = vec3(0,0,0);
+
   void main(){
-    if(gl_VertexID==0){gl_Position = vec4(0,0,0,1);vColor = vec3(1,0,0);}
-    if(gl_VertexID==1){gl_Position = vec4(1,0,0,1);vColor = vec3(0,1,0);}
-    if(gl_VertexID==2){gl_Position = vec4(0,1,0,1);vColor = vec3(0,0,1);}
+    if(gl_VertexID==0){gl_Position = vec4(0,0,0,1)+vec4(position,0);vColor = vec3(1,0,0);}
+    if(gl_VertexID==1){gl_Position = vec4(1,0,0,1)+vec4(position,0);vColor = vec3(0,1,0);}
+    if(gl_VertexID==2){gl_Position = vec4(0,1,0,1)+vec4(position,0);vColor = vec3(0,0,1);}
   }
   ).";
 
@@ -74,13 +76,22 @@ int main(int argc,char*argv[]){
   auto fs = createShader(GL_FRAGMENT_SHADER,fsSrc);
   auto prg = createProgram({vs,fs});
 
+  auto positionL = glGetUniformLocation(prg,"position");
 
+
+  float position[] = {
+    0,0,0,
+  };
 
   bool running = true;
   while(running){ // main loop
     SDL_Event event;
     while(SDL_PollEvent(&event)){ // event loop
       if(event.type == SDL_EVENT_QUIT)running = false;
+      if(event.type == SDL_EVENT_KEY_DOWN){
+        if(event.key.key == SDLK_D)position[0] += 0.01;
+        if(event.key.key == SDLK_A)position[0] -= 0.01;
+      }
     }
   
     //rendering
@@ -89,6 +100,7 @@ int main(int argc,char*argv[]){
 
     glPointSize(10);
     glUseProgram(prg);
+    glProgramUniform3fv(prg,positionL,1,position);
     glDrawArrays(GL_TRIANGLES,0,3);
 
     SDL_GL_SwapWindow(window); // for double buffering / swap front and back buffer
