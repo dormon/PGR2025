@@ -1,6 +1,7 @@
 #include<SDL3/SDL.h>
 #include<geGL/geGL.h>
 #include<geGL/StaticCalls.h>
+#include<cmath>
 
 using namespace ge::gl;
 
@@ -38,6 +39,21 @@ GLuint createProgram(std::vector<GLuint>const&shaders){
   }
 
   return prg;
+}
+
+void matrixMultiplication(float* O, float* A, float* B) {
+    for (int c = 0; c < 4; ++c) // column
+        for (int r = 0; r < 4; ++r) { // row
+            O[c * 4 + r] = 0;
+            for (int i = 0; i < 4; ++i)
+                O[c * 4 + r] += A[i*4+r] * B[c*4+i];
+        }
+}
+
+void matrixIdentity(float* O) {
+    for (int c = 0; c < 4; ++c) // column
+        for (int r = 0; r < 4; ++r) // row
+            O[c * 4 + r] = (float)(c == r);
 }
 
 int main(int argc,char*argv[]){
@@ -78,13 +94,20 @@ int main(int argc,char*argv[]){
 
   auto modelMatrixL = glGetUniformLocation(prg,"modelMatrix");
 
+  float angle = 0.f;
+  float Sx = 1.f;
+  float Sy = 1.f;
+  float Sz = 1.f;
 
-  float modelMatrix[16] = {
-    1,0,0,0,
-    0,1,0,0,
-    0,0,1,0,
-    0,0,0,1,
-  };
+  float modelMatrix[16];
+  float translateMatrix[16];
+  float scaleMatrix[16];
+  float rotateZMatrix[16];
+  matrixIdentity(modelMatrix);
+  matrixIdentity(translateMatrix);
+  matrixIdentity(scaleMatrix);
+  matrixIdentity(rotateZMatrix);
+
 
   bool running = true;
   while(running){ // main loop
@@ -92,13 +115,27 @@ int main(int argc,char*argv[]){
     while(SDL_PollEvent(&event)){ // event loop
       if(event.type == SDL_EVENT_QUIT)running = false;
       if(event.type == SDL_EVENT_KEY_DOWN){
-        if(event.key.key == SDLK_D)modelMatrix[12] += 0.01;
-        if(event.key.key == SDLK_A)modelMatrix[12] -= 0.01;
-        if(event.key.key == SDLK_W)modelMatrix[13] += 0.01;
-        if(event.key.key == SDLK_S)modelMatrix[13] -= 0.01;
+        if(event.key.key == SDLK_D)translateMatrix[12] += 0.01;
+        if(event.key.key == SDLK_A)translateMatrix[12] -= 0.01;
+        if(event.key.key == SDLK_W)translateMatrix[13] += 0.01;
+        if(event.key.key == SDLK_S)translateMatrix[13] -= 0.01;
+        if (event.key.key == SDLK_O)scaleMatrix[0] += 0.01;
+        if (event.key.key == SDLK_P)scaleMatrix[0] -= 0.01;
+        if (event.key.key == SDLK_K)scaleMatrix[5] += 0.01;
+        if (event.key.key == SDLK_L)scaleMatrix[5] -= 0.01;
+        if (event.key.key == SDLK_M)angle += 0.01;
       }
     }
   
+    rotateZMatrix[0] = +cos(angle);
+    rotateZMatrix[1] = -sin(angle);
+    rotateZMatrix[4] = +sin(angle);
+    rotateZMatrix[5] = +cos(angle);
+
+    float C[16];
+    matrixMultiplication(C, rotateZMatrix, scaleMatrix);
+    matrixMultiplication(modelMatrix, translateMatrix, C);
+
     //rendering
     glClearColor(0.1,0.1,0.1,1);
     glClear(GL_COLOR_BUFFER_BIT);
