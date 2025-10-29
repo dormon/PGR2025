@@ -2,6 +2,7 @@
 #include<geGL/geGL.h>
 #include<geGL/StaticCalls.h>
 #include<cmath>
+#include<map>
 
 using namespace ge::gl;
 
@@ -56,6 +57,53 @@ void matrixIdentity(float* O) {
             O[c * 4 + r] = (float)(c == r);
 }
 
+void rotateX(float*O,float angle){
+  matrixIdentity(O);
+  auto cosa = cos(angle);
+  auto sina = sin(angle);
+  O[5 ] = +cosa;
+  O[6 ] = +sina;
+  O[9 ] = -sina;
+  O[10] = +cosa;
+}
+
+void rotateY(float*O,float angle){
+  matrixIdentity(O);
+  auto cosa = cos(angle);
+  auto sina = sin(angle);
+  O[0 ] = +cosa;
+  O[2 ] = +sina;
+  O[8 ] = -sina;
+  O[10] = +cosa;
+}
+
+void translate(float*O,float x,float y,float z){
+  matrixIdentity(O);
+  O[12] = x;
+  O[13] = y;
+  O[14] = z;
+}
+
+void frustum(float*O,float L,float R,float B,float T,float n,float f){
+  matrixIdentity(O);
+  O[0] = 2*n/(R-L);
+  O[5] = 2*n/(T-B);
+  O[8] = (R+L)/(R-L);
+  O[9] = (T+B)/(T-B);
+  O[10] = -(f+n)/(f-n);
+  O[11] = -1;
+  O[14] = -2*n*f/(f-n);
+  O[15] = 0;
+}
+
+void perspective(float*O,float fovy,float aspect,float n,float f){
+  float R = n*tan(fovy/2);
+  float L = -R;
+  float T = R/aspect;
+  float B = -T;
+  frustum(O,L,R,B,T,n,f);
+}
+
 int main(int argc,char*argv[]){
   auto window = SDL_CreateWindow("PGR2025",1024,768,SDL_WINDOW_OPENGL);
   auto context = SDL_GL_CreateContext(window);
@@ -67,12 +115,20 @@ int main(int argc,char*argv[]){
 
   out vec3 vColor;
 
-  uniform mat4 modelMatrix = mat4(1);
+  uniform mat4 viewMatrix = mat4(1);
+  uniform mat4 projMatrix = mat4(1);
 
   void main(){
-    if(gl_VertexID==0){gl_Position = modelMatrix*vec4(0,0,0,1);vColor = vec3(1,0,0);}
-    if(gl_VertexID==1){gl_Position = modelMatrix*vec4(1,0,0,1);vColor = vec3(0,1,0);}
-    if(gl_VertexID==2){gl_Position = modelMatrix*vec4(0,1,0,1);vColor = vec3(0,0,1);}
+    mat4 pv = projMatrix * viewMatrix;
+    if(gl_VertexID==0){gl_Position = pv*vec4(0,0,0,1);vColor = vec3(1,0,0);}
+    if(gl_VertexID==1){gl_Position = pv*vec4(1,0,0,1);vColor = vec3(0,1,0);}
+    if(gl_VertexID==2){gl_Position = pv*vec4(0,1,0,1);vColor = vec3(0,0,1);}
+    if(gl_VertexID==3){gl_Position = pv*vec4(-10,0,-10,1);vColor = vec3(1,0,0);}
+    if(gl_VertexID==4){gl_Position = pv*vec4(+10,0,-10,1);vColor = vec3(0,1,0);}
+    if(gl_VertexID==5){gl_Position = pv*vec4(-10,1,+10,1);vColor = vec3(0,0,1);}
+    if(gl_VertexID==6){gl_Position = pv*vec4(-10,1,+10,1);vColor = vec3(0,0,1);}
+    if(gl_VertexID==7){gl_Position = pv*vec4(+10,0,-10,1);vColor = vec3(0,1,0);}
+    if(gl_VertexID==8){gl_Position = pv*vec4(+10,0,+10,1);vColor = vec3(1,0,0);}
   }
   ).";
 
@@ -92,58 +148,85 @@ int main(int argc,char*argv[]){
   auto fs = createShader(GL_FRAGMENT_SHADER,fsSrc);
   auto prg = createProgram({vs,fs});
 
-  auto modelMatrixL = glGetUniformLocation(prg,"modelMatrix");
+  auto viewMatrixL = glGetUniformLocation(prg,"viewMatrix");
+  auto projMatrixL = glGetUniformLocation(prg,"projMatrix");
 
-  float angle = 0.f;
-  float Sx = 1.f;
-  float Sy = 1.f;
-  float Sz = 1.f;
+  float cameraPosition[3] = {0,0,3};
+  float angleX = 0.f;
+  float angleY = 0.f;
 
-  float modelMatrix[16];
-  float translateMatrix[16];
-  float scaleMatrix[16];
-  float rotateZMatrix[16];
-  matrixIdentity(modelMatrix);
-  matrixIdentity(translateMatrix);
-  matrixIdentity(scaleMatrix);
-  matrixIdentity(rotateZMatrix);
+  float viewMatrix[16];
+  float VT[16];
+  float VR[16];
+
+  float VRX[16];
+  float VRY[16];
+
+  float projMatrix[16];
+  matrixIdentity(projMatrix);
 
 
+  float sensitivity = 0.01;
+  float cameraSpeed = 0.1;
+
+  std::map<int,bool>keys;
+
+  glEnable(GL_DEPTH_TEST);
   bool running = true;
   while(running){ // main loop
     SDL_Event event;
     while(SDL_PollEvent(&event)){ // event loop
       if(event.type == SDL_EVENT_QUIT)running = false;
-      if(event.type == SDL_EVENT_KEY_DOWN){
-        if(event.key.key == SDLK_D)translateMatrix[12] += 0.01;
-        if(event.key.key == SDLK_A)translateMatrix[12] -= 0.01;
-        if(event.key.key == SDLK_W)translateMatrix[13] += 0.01;
-        if(event.key.key == SDLK_S)translateMatrix[13] -= 0.01;
-        if (event.key.key == SDLK_O)scaleMatrix[0] += 0.01;
-        if (event.key.key == SDLK_P)scaleMatrix[0] -= 0.01;
-        if (event.key.key == SDLK_K)scaleMatrix[5] += 0.01;
-        if (event.key.key == SDLK_L)scaleMatrix[5] -= 0.01;
-        if (event.key.key == SDLK_M)angle += 0.01;
+      if(event.type == SDL_EVENT_KEY_UP)
+        keys[event.key.key] = false;
+      if(event.type == SDL_EVENT_KEY_DOWN)
+        keys[event.key.key] = true;
+      if(event.type == SDL_EVENT_MOUSE_MOTION){
+        if(event.motion.state & SDL_BUTTON_LEFT){
+          angleY -= event.motion.xrel * sensitivity;
+          angleX += event.motion.yrel * sensitivity;
+        }
       }
     }
   
-    rotateZMatrix[0] = +cos(angle);
-    rotateZMatrix[1] = -sin(angle);
-    rotateZMatrix[4] = +sin(angle);
-    rotateZMatrix[5] = +cos(angle);
 
-    float C[16];
-    matrixMultiplication(C, rotateZMatrix, scaleMatrix);
-    matrixMultiplication(modelMatrix, translateMatrix, C);
+    // (VR[0],VR[4],VR[8 ]) - X axis of camera
+    // (VR[1],VR[5],VR[9 ]) - Y
+    // (VR[2],VR[6],VR[10]) - Z axis
+    float leftRight       = ((int)(keys[SDLK_D])-(int)keys[SDLK_A]) * cameraSpeed;
+    float forwardBackward = ((int)(keys[SDLK_S])-(int)keys[SDLK_W]) * cameraSpeed;
+    float upDown          = ((int)(keys[SDLK_SPACE])-(int)keys[SDLK_LSHIFT]) * cameraSpeed;
+    cameraPosition[0] += VR[0]*leftRight;
+    cameraPosition[1] += VR[4]*leftRight;
+    cameraPosition[2] += VR[8]*leftRight;
+    cameraPosition[0] += VR[2 ]*forwardBackward;
+    cameraPosition[1] += VR[6 ]*forwardBackward;
+    cameraPosition[2] += VR[10]*forwardBackward;
+
+    cameraPosition[0] += VR[1 ]*upDown;
+    cameraPosition[1] += VR[5 ]*upDown;
+    cameraPosition[2] += VR[9 ]*upDown;
+
+
+    translate(VT,-cameraPosition[0],-cameraPosition[1],-cameraPosition[2]);
+    rotateX(VRX,angleX);
+    rotateY(VRY,angleY);
+
+    matrixMultiplication(VR,VRX,VRY);
+    matrixMultiplication(viewMatrix,VR,VT);
+
+    perspective(projMatrix,1024/768.,90./180.*3.1415925,0.1,1000.f);
+
 
     //rendering
     glClearColor(0.1,0.1,0.1,1);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
     glPointSize(10);
     glUseProgram(prg);
-    glProgramUniformMatrix4fv(prg,modelMatrixL,1,GL_FALSE,modelMatrix);
-    glDrawArrays(GL_TRIANGLES,0,3);
+    glProgramUniformMatrix4fv(prg,viewMatrixL,1,GL_FALSE,viewMatrix);
+    glProgramUniformMatrix4fv(prg,projMatrixL,1,GL_FALSE,projMatrix);
+    glDrawArrays(GL_TRIANGLES,0,9);
 
     SDL_GL_SwapWindow(window); // for double buffering / swap front and back buffer
   }
