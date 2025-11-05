@@ -150,21 +150,45 @@ int main(int argc,char*argv[]){
   }
   ).";
 
+  auto gsSrc = R".(
+  #version 460
+  
+  layout(triangles)in;
+  layout(triangle_strip,max_vertices=3)out;
+
+  in vec3 vColor[];
+  out vec3 gColor;
+
+  void main(){
+    gl_Position = (gl_in[0].gl_Position + gl_in[1].gl_Position)/2;
+    gColor = vColor[0];
+    EmitVertex();
+    gl_Position = (gl_in[1].gl_Position + gl_in[2].gl_Position)/2;
+    gColor = vColor[1];
+    EmitVertex();
+    gl_Position = (gl_in[2].gl_Position + gl_in[0].gl_Position)/2;
+    gColor = vColor[2];
+    EmitVertex();
+  }
+
+  ).";
+
   auto fsSrc = R".(
   #version 460
 
-  in vec3 vColor;
+  in vec3 gColor;
   out vec4 fColor;
 
   void main(){
-    fColor = vec4(vColor,1);
+    fColor = vec4(gColor,1);
   }
   ).";
 
 
   auto vs = createShader(GL_VERTEX_SHADER,vsSrc);
+  auto gs = createShader(GL_GEOMETRY_SHADER,gsSrc);
   auto fs = createShader(GL_FRAGMENT_SHADER,fsSrc);
-  auto prg = createProgram({vs,fs});
+  auto prg = createProgram({vs,gs,fs});
 
   auto viewMatrixL = glGetUniformLocation(prg,"viewMatrix");
   auto projMatrixL = glGetUniformLocation(prg,"projMatrix");
