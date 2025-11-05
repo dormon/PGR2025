@@ -10,7 +10,12 @@ add_subdirectory(libs/SDL-release-3.2.24)
 
 add_subdirectory(libs/geGL-master)
 
-add_executable(${PROJECT_NAME} src/main.cpp)
+add_executable(${PROJECT_NAME} 
+  src/main.cpp
+  src/bunny.cpp
+  src/bunny.hpp
+
+  )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
   SDL3::SDL3
@@ -18,3 +23,5 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   )
 
 add_custom_target(run ./${PROJECT_NAME})
+
+target_include_directories(${PROJECT_NAME} PUBLIC src/)

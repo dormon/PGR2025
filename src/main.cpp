@@ -4,6 +4,8 @@
 #include<cmath>
 #include<map>
 
+#include<bunny.hpp>
+
 using namespace ge::gl;
 
 GLuint createShader(GLenum type,std::string const&src){
@@ -110,9 +112,32 @@ int main(int argc,char*argv[]){
 
   ge::gl::init(); // initialization of OpenGL / function pointers
 
+  GLuint vbo;
+  glCreateBuffers(1,&vbo);
+  glNamedBufferData(vbo,sizeof(bunnyVertices),bunnyVertices,GL_DYNAMIC_DRAW);
+
+  GLuint ebo;
+  glCreateBuffers(1,&ebo);
+  glNamedBufferData(ebo,sizeof(bunnyIndices),bunnyIndices,GL_DYNAMIC_DRAW);
+
+  GLuint vao;
+  glCreateVertexArrays(1,&vao);
+  glVertexArrayAttribBinding(vao,0,0);
+  glEnableVertexArrayAttrib(vao,0);
+  glVertexArrayAttribFormat(vao,0,3,GL_FLOAT,GL_FALSE,0);
+  glVertexArrayVertexBuffer(vao,0,vbo,sizeof(float)*0,sizeof(BunnyVertex));
+  glVertexArrayAttribBinding(vao,1,1);
+  glEnableVertexArrayAttrib(vao,1);
+  glVertexArrayAttribFormat(vao,1,3,GL_FLOAT,GL_FALSE,0);
+  glVertexArrayVertexBuffer(vao,1,vbo,sizeof(float)*3,sizeof(BunnyVertex));
+  glVertexArrayElementBuffer(vao,ebo);
+
+
   auto vsSrc = R".(
   #version 460
 
+  layout(location=0)in vec3 position;
+  layout(location=1)in vec3 normal  ;
   out vec3 vColor;
 
   uniform mat4 viewMatrix = mat4(1);
@@ -120,15 +145,8 @@ int main(int argc,char*argv[]){
 
   void main(){
     mat4 pv = projMatrix * viewMatrix;
-    if(gl_VertexID==0){gl_Position = pv*vec4(0,0,0,1);vColor = vec3(1,0,0);}
-    if(gl_VertexID==1){gl_Position = pv*vec4(1,0,0,1);vColor = vec3(0,1,0);}
-    if(gl_VertexID==2){gl_Position = pv*vec4(0,1,0,1);vColor = vec3(0,0,1);}
-    if(gl_VertexID==3){gl_Position = pv*vec4(-10,0,-10,1);vColor = vec3(1,0,0);}
-    if(gl_VertexID==4){gl_Position = pv*vec4(+10,0,-10,1);vColor = vec3(0,1,0);}
-    if(gl_VertexID==5){gl_Position = pv*vec4(-10,1,+10,1);vColor = vec3(0,0,1);}
-    if(gl_VertexID==6){gl_Position = pv*vec4(-10,1,+10,1);vColor = vec3(0,0,1);}
-    if(gl_VertexID==7){gl_Position = pv*vec4(+10,0,-10,1);vColor = vec3(0,1,0);}
-    if(gl_VertexID==8){gl_Position = pv*vec4(+10,0,+10,1);vColor = vec3(1,0,0);}
+    gl_Position = pv*vec4(position,1);
+    vColor = normal;
   }
   ).";
 
@@ -226,7 +244,9 @@ int main(int argc,char*argv[]){
     glUseProgram(prg);
     glProgramUniformMatrix4fv(prg,viewMatrixL,1,GL_FALSE,viewMatrix);
     glProgramUniformMatrix4fv(prg,projMatrixL,1,GL_FALSE,projMatrix);
-    glDrawArrays(GL_TRIANGLES,0,9);
+
+    glBindVertexArray(vao);
+    glDrawElements(GL_TRIANGLES,sizeof(bunnyIndices)/sizeof(uint32_t),GL_UNSIGNED_INT,0);
 
     SDL_GL_SwapWindow(window); // for double buffering / swap front and back buffer
   }
